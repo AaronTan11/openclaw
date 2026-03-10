@@ -1,10 +1,11 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { runAgentSdkAgent } from "../../agents/agent-sdk-runner.js";
 import { resolveBootstrapWarningSignaturesSeen } from "../../agents/bootstrap-budget.js";
 import { runCliAgent } from "../../agents/cli-runner.js";
 import { getCliSessionId } from "../../agents/cli-session.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
-import { isCliProvider } from "../../agents/model-selection.js";
+import { isAgentSdkProvider, isCliProvider } from "../../agents/model-selection.js";
 import {
   isCompactionFailureError,
   isContextOverflowError,
@@ -306,6 +307,88 @@ export async function runAgentTurnWithFallback(params: {
               }
             })();
           }
+
+          if (isAgentSdkProvider(provider)) {
+            const startedAt = Date.now();
+            notifyAgentRunStart();
+            emitAgentEvent({
+              runId,
+              stream: "lifecycle",
+              data: {
+                phase: "start",
+                startedAt,
+              },
+            });
+            return (async () => {
+              let lifecycleTerminalEmitted = false;
+              try {
+                const result = await runAgentSdkAgent({
+                  sessionId: params.followupRun.run.sessionId,
+                  sessionKey: params.sessionKey,
+                  agentId: params.followupRun.run.agentId,
+                  workspaceDir: params.followupRun.run.workspaceDir,
+                  config: params.followupRun.run.config,
+                  prompt: params.commandBody,
+                  model,
+                  thinkLevel: params.followupRun.run.thinkLevel,
+                  timeoutMs: params.followupRun.run.timeoutMs,
+                  runId,
+                  abortSignal: params.opts?.abortSignal,
+                });
+
+                // Agent SDK doesn't stream to OpenClaw's event system, so emit
+                // the final text so server-chat can populate its buffer.
+                const sdkText = result.payloads?.[0]?.text?.trim();
+                if (sdkText) {
+                  emitAgentEvent({
+                    runId,
+                    stream: "assistant",
+                    data: { text: sdkText },
+                  });
+                }
+
+                emitAgentEvent({
+                  runId,
+                  stream: "lifecycle",
+                  data: {
+                    phase: "end",
+                    startedAt,
+                    endedAt: Date.now(),
+                  },
+                });
+                lifecycleTerminalEmitted = true;
+
+                return result;
+              } catch (err) {
+                emitAgentEvent({
+                  runId,
+                  stream: "lifecycle",
+                  data: {
+                    phase: "error",
+                    startedAt,
+                    endedAt: Date.now(),
+                    error: String(err),
+                  },
+                });
+                lifecycleTerminalEmitted = true;
+                throw err;
+              } finally {
+                if (!lifecycleTerminalEmitted) {
+                  emitAgentEvent({
+                    runId,
+                    stream: "lifecycle",
+                    data: {
+                      phase: "error",
+                      startedAt,
+                      endedAt: Date.now(),
+                      error: "Agent SDK run completed without lifecycle terminal event",
+                    },
+                  });
+                }
+              }
+            })();
+          }
+
           const { authProfile, embeddedContext, senderContext } = buildEmbeddedRunContexts({
             run: params.followupRun.run,
             sessionCtx: params.sessionCtx,
