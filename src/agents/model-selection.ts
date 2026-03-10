@@ -113,6 +113,10 @@ export function isCliProvider(provider: string, cfg?: OpenClawConfig): boolean {
   return Object.keys(backends).some((key) => normalizeProviderId(key) === normalized);
 }
 
+export function isAgentSdkProvider(provider: string): boolean {
+  return normalizeProviderId(provider) === "agent-sdk";
+}
+
 function normalizeAnthropicModelId(model: string): string {
   const trimmed = model.trim();
   if (!trimmed) {

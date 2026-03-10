@@ -5,6 +5,7 @@ import {
   resolveAgentWorkspaceDir,
   resolveDefaultAgentId,
 } from "../../agents/agent-scope.js";
+import { runAgentSdkAgent } from "../../agents/agent-sdk-runner.js";
 import { resolveSessionAuthProfileOverride } from "../../agents/auth-profiles/session-override.js";
 import { resolveBootstrapWarningSignaturesSeen } from "../../agents/bootstrap-budget.js";
 import { runCliAgent } from "../../agents/cli-runner.js";
@@ -16,6 +17,7 @@ import { loadModelCatalog } from "../../agents/model-catalog.js";
 import { runWithModelFallback } from "../../agents/model-fallback.js";
 import {
   getModelRefStatus,
+  isAgentSdkProvider,
   isCliProvider,
   normalizeModelSelection,
   resolveAllowedModelRef,
@@ -592,6 +594,25 @@ export async function runCronIsolatedAgentTurn(params: {
             bootstrapPromptWarningSignaturesSeen = resolveBootstrapWarningSignaturesSeen(
               result.meta?.systemPromptReport,
             );
+            return result;
+          }
+          if (isAgentSdkProvider(providerOverride)) {
+            const result = await runAgentSdkAgent({
+              sessionId: cronSession.sessionEntry.sessionId,
+              sessionKey: agentSessionKey,
+              agentId,
+              workspaceDir,
+              config: cfgWithAgentDefaults,
+              prompt: promptText,
+              model: modelOverride,
+              thinkLevel,
+              timeoutMs,
+              runId: cronSession.sessionEntry.sessionId,
+              maxTurns: agentPayload?.maxTurns,
+              allowedTools: agentPayload?.allowedTools,
+              disallowedTools: agentPayload?.disallowedTools,
+              abortSignal,
+            });
             return result;
           }
           const result = await runEmbeddedPiAgent({

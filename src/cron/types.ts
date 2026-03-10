@@ -97,6 +97,12 @@ type CronAgentTurnPayloadFields = {
   channel?: CronMessageChannel;
   to?: string;
   bestEffortDeliver?: boolean;
+  /** Max agent turns for Agent SDK runs (default 25). Ignored by embedded/CLI runners. */
+  maxTurns?: number;
+  /** Agent SDK tools to enable (default: Read, Bash, Glob, Grep, Write, Edit). Ignored by embedded/CLI runners. */
+  allowedTools?: string[];
+  /** Agent SDK tools to disable. Ignored by embedded/CLI runners. */
+  disallowedTools?: string[];
 };
 
 type CronAgentTurnPayload = {
