@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { OpenClawConfig } from "../config/config.js";
 import { createSubsystemLogger } from "../logging/subsystem.js";
 import type {
@@ -78,6 +80,19 @@ function resolveSDKModel(model: string | undefined): string | undefined {
   return aliases[model.toLowerCase()] ?? model;
 }
 
+/** Read CLAUDE.md from the workspace directory if it exists. */
+function readWorkspaceSystemPrompt(workspaceDir: string): string | undefined {
+  for (const name of ["CLAUDE.md", "AGENTS.md"]) {
+    const filePath = path.join(workspaceDir, name);
+    try {
+      return fs.readFileSync(filePath, "utf-8").trim() || undefined;
+    } catch {
+      // File doesn't exist, try next.
+    }
+  }
+  return undefined;
+}
+
 /** Build a clean env with ANTHROPIC_API_KEY stripped. */
 function buildCleanEnv(): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = { ...process.env };
@@ -109,6 +124,7 @@ export async function runAgentSdkAgent(params: AgentSdkRunnerParams): Promise<Em
     const sdkModel = resolveSDKModel(params.model);
     const thinkingConfig = resolveThinkingConfig(params.thinkLevel);
     const env = buildCleanEnv();
+    const workspacePrompt = readWorkspaceSystemPrompt(params.workspaceDir);
 
     const options: SDKOptions = {
       abortController,
@@ -120,6 +136,7 @@ export async function runAgentSdkAgent(params: AgentSdkRunnerParams): Promise<Em
       allowDangerouslySkipPermissions: true,
       allowedTools: params.allowedTools ?? ["Read", "Bash", "Glob", "Grep", "Write", "Edit"],
       disallowedTools: params.disallowedTools,
+      systemPrompt: workspacePrompt,
       persistSession: false,
       env,
     };
