@@ -190,6 +190,27 @@ export const AgentDefaultsSchema = z
       .strict()
       .optional(),
     sandbox: AgentSandboxSchema,
+    mcpServers: z
+      .record(
+        z.string(),
+        z
+          .object({
+            /** Transport type. Defaults to "stdio" when `command` is present. */
+            type: z.enum(["stdio", "http", "sse"]).optional(),
+            /** Stdio: command to spawn. */
+            command: z.string().optional(),
+            /** Stdio: arguments for the command. */
+            args: z.array(z.string()).optional(),
+            /** Stdio: environment variables. */
+            env: z.record(z.string(), z.string()).optional(),
+            /** HTTP/SSE: server URL. */
+            url: z.string().optional(),
+            /** HTTP/SSE: request headers (e.g. Authorization). */
+            headers: z.record(z.string(), z.string()).optional(),
+          })
+          .strict(),
+      )
+      .optional(),
   })
   .strict()
   .optional();

@@ -126,6 +126,9 @@ export async function runAgentSdkAgent(params: AgentSdkRunnerParams): Promise<Em
     const env = buildCleanEnv();
     const workspacePrompt = readWorkspaceSystemPrompt(params.workspaceDir);
 
+    // Read MCP servers from agent defaults config.
+    const mcpServers = params.config?.agents?.defaults?.mcpServers;
+
     const options: SDKOptions = {
       abortController,
       cwd: params.workspaceDir,
@@ -139,6 +142,9 @@ export async function runAgentSdkAgent(params: AgentSdkRunnerParams): Promise<Em
       systemPrompt: workspacePrompt,
       persistSession: false,
       env,
+      ...(mcpServers && Object.keys(mcpServers).length > 0
+        ? { mcpServers: mcpServers as SDKOptions["mcpServers"] }
+        : {}),
     };
 
     const stream = query({ prompt: params.prompt, options });

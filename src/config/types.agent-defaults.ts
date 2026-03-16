@@ -284,6 +284,18 @@ export type AgentDefaultsConfig = {
   };
   /** Optional sandbox settings for non-main sessions. */
   sandbox?: AgentSandboxConfig;
+  /** MCP servers to inject into Agent SDK runs. */
+  mcpServers?: Record<
+    string,
+    {
+      type?: "stdio" | "http" | "sse";
+      command?: string;
+      args?: string[];
+      env?: Record<string, string>;
+      url?: string;
+      headers?: Record<string, string>;
+    }
+  >;
 };
 
 export type AgentCompactionMode = "default" | "safeguard";
