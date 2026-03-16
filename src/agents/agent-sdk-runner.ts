@@ -137,7 +137,11 @@ export async function runAgentSdkAgent(params: AgentSdkRunnerParams): Promise<Em
       thinking: thinkingConfig,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
-      allowedTools: params.allowedTools ?? ["Read", "Bash", "Glob", "Grep", "Write", "Edit"],
+      allowedTools:
+        params.allowedTools ??
+        (mcpServers && Object.keys(mcpServers).length > 0
+          ? undefined // When MCP servers are configured, don't restrict tools so MCP tools are accessible.
+          : ["Read", "Bash", "Glob", "Grep", "Write", "Edit"]),
       disallowedTools: params.disallowedTools,
       systemPrompt: workspacePrompt,
       persistSession: false,
