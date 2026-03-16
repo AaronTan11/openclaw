@@ -144,22 +144,51 @@ export async function runAgentSdkAgent(params: AgentSdkRunnerParams): Promise<Em
           : ["Read", "Bash", "Glob", "Grep", "Write", "Edit"]),
       disallowedTools: params.disallowedTools,
       systemPrompt: workspacePrompt,
-      persistSession: false,
+      persistSession: true,
       env,
       ...(mcpServers && Object.keys(mcpServers).length > 0
         ? { mcpServers: mcpServers as SDKOptions["mcpServers"] }
         : {}),
     };
 
-    const stream = query({ prompt: params.prompt, options });
-
     const textParts: string[] = [];
     let lastRateLimitResetsAt: number | undefined;
 
-    for await (const message of stream) {
-      handleMessage(message, textParts, params, (resetsAt) => {
-        lastRateLimitResetsAt = resetsAt;
-      });
+    // Try resuming existing session; if not found, create a new one with the same ID.
+    let stream: AsyncIterable<SDKMessage>;
+    try {
+      stream = query({ prompt: params.prompt, options: { ...options, resume: params.sessionId } });
+      // Consume the first message to detect "No conversation found" errors early.
+      const iter = stream[Symbol.asyncIterator]();
+      const first = await iter.next();
+      if (!first.done) {
+        handleMessage(first.value, textParts, params, (resetsAt) => {
+          lastRateLimitResetsAt = resetsAt;
+        });
+      }
+      // Continue consuming the rest of the stream.
+      for await (const message of { [Symbol.asyncIterator]: () => iter }) {
+        handleMessage(message, textParts, params, (resetsAt) => {
+          lastRateLimitResetsAt = resetsAt;
+        });
+      }
+    } catch (resumeErr) {
+      const errMsg = resumeErr instanceof Error ? resumeErr.message : String(resumeErr);
+      if (errMsg.includes("No conversation found")) {
+        log.info(`No existing session ${params.sessionId}, creating new session`);
+        // Retry without resume, using sessionId to create a new session with that ID.
+        stream = query({
+          prompt: params.prompt,
+          options: { ...options, sessionId: params.sessionId },
+        });
+        for await (const message of stream) {
+          handleMessage(message, textParts, params, (resetsAt) => {
+            lastRateLimitResetsAt = resetsAt;
+          });
+        }
+      } else {
+        throw resumeErr;
+      }
     }
 
     // The SDK generator may end cleanly on abort instead of throwing.
